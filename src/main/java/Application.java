@@ -4,7 +4,6 @@ import org.apache.commons.lang3.StringUtils;
 
 import java.io.*;
 import java.nio.charset.Charset;
-import java.nio.charset.StandardCharsets;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -15,8 +14,7 @@ import java.util.concurrent.atomic.AtomicReference;
 @Slf4j
 public class Application {
 
-    //private static final Charset POWERSHELL_CHARSET = Charset.forName("GB2312");
-    private static final Charset POWERSHELL_CHARSET = StandardCharsets.UTF_8;
+    private static final Charset TASKLIST_CHARSET = Charset.forName("GB2312");
     private static AtomicReference<String> PID = new AtomicReference<>("");
 
     public static void main(String[] args) throws InterruptedException {
@@ -24,33 +22,50 @@ public class Application {
         final Application application = new Application();
         while (true) {
             log.info("Application With-War3 starts ...");
-            boolean result = application.start(programName);
-            TimeUnit.SECONDS.sleep(result ? 150 : 15);
+            application.getPID(programName).map((ignored) -> {
+                application.start(programName);
+                try {
+                    TimeUnit.MINUTES.sleep(1);
+                } catch (InterruptedException ignoredExp) {
+                }
+                application.start(programName);
+                return ignored;
+            }).or(() -> {
+                try {
+                    TimeUnit.SECONDS.sleep(20);
+                } catch (InterruptedException ignored) {
+                }
+                return Optional.empty();
+            });
         }
     }
 
-    private boolean start(String programName) {
-        return this.getPID(programName).map(pid -> {
+    private void start(String programName) {
+        this.getPID(programName).ifPresentOrElse(pid -> {
             if (!StringUtils.equalsIgnoreCase(PID.get(), pid)) {
                 PID.updateAndGet(v -> pid);
                 try {
-                    new ProcessBuilder("D:\\myGame\\war3_repair.exe").start();
+                    new ProcessBuilder("D:\\myGame\\war3_show_all.exe").start();
+                    log.info("war3_show_all.exe starts");
                 } catch (IOException e) {
                     log.error("failed to start war3_show_all.exe", e);
-                    return false;
                 }
-                return getPID("War3字体重叠乱码修复工具.exe").map(ignored -> {
+                getPID("war3_repair.exe").ifPresentOrElse(ignored -> {
+                    log.info("war3_repair.exe has started");
+                }, () -> {
                     try {
-                        new ProcessBuilder("D:\\myGame\\war3_show_all.exe").start();
-                        return true;
+                        new ProcessBuilder("D:\\myGame\\war3_repair.exe").start();
+                        log.info("war3_repair.exe starts");
                     } catch (IOException e) {
-                        log.error("failed to start war3_show_all.exe", e);
-                        return false;
+                        log.error("failed to start war3_repair.exe", e);
                     }
-                }).orElse(false);
+                });
+            } else {
+                log.info("Application already launched tools for War3.exe");
             }
-            return true;
-        }).orElse(false);
+        }, () -> {
+            log.info("War3.exe doesn't exist");
+        });
     }
 
     private Optional<String> getPID(String programName) {
@@ -63,22 +78,22 @@ public class Application {
             log.error("failed to execute {}", command, e);
             return Optional.empty();
         }
-        try (final BufferedReader processStOutput =
-                     new BufferedReader(new InputStreamReader(tasklistProcess.getInputStream(), POWERSHELL_CHARSET));
+
+        try (final InputStream taskListStdout = tasklistProcess.getInputStream();
+             final BufferedReader processStOutput = new BufferedReader(new InputStreamReader(taskListStdout, TASKLIST_CHARSET));
              final InputStream processStdErr = new BufferedInputStream(tasklistProcess.getErrorStream())) {
 
             String line = null;
             while ((line = processStOutput.readLine()) != null) {
-                log.info(line);
                 // War3.exe                 5084 Console                    8    374,968 K
-                // War3字体重叠乱码修复工具.    17948 Console                    8     66,824 K
+                // war3_repair.exe              25740 Console                    8     70,432 K
                 final String[] taskListItem = StringUtils.split(line);
                 if (taskListItem.length >= 2 && StringUtils.equalsIgnoreCase(programName, taskListItem[0])) {
                     return Optional.of(taskListItem[1]);
                 }
             }
 
-            final String errorMessage = new String(processStdErr.readAllBytes(), POWERSHELL_CHARSET);
+            final String errorMessage = new String(processStdErr.readAllBytes(), TASKLIST_CHARSET);
             if (StringUtils.isNotBlank(errorMessage)) {
                 log.error("tasklist.exe stderr: {}", errorMessage);
             } else {
