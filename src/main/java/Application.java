@@ -15,9 +15,9 @@ import java.util.concurrent.atomic.AtomicReference;
 public class Application {
 
     private static final Charset TASKLIST_CHARSET = Charset.forName("GB2312");
-    private static AtomicReference<String> PID = new AtomicReference<>("");
+    private static final AtomicReference<String> PID = new AtomicReference<>("");
 
-    public static void main(String[] args) throws InterruptedException {
+    public static void main(String[] args) {
         final String programName = StringUtils.firstNonBlank(ArrayUtils.isEmpty(args) ? "" : args[0], "War3.exe");
         final Application application = new Application();
         while (true) {
@@ -48,9 +48,7 @@ public class Application {
                 } catch (IOException e) {
                     log.error("failed to start war3_show_all.exe", e);
                 }
-                getPID("war3_repair.exe").ifPresentOrElse(ignored -> {
-                    log.info("war3_repair.exe has started");
-                }, () -> {
+                getPID("war3_repair.exe").ifPresentOrElse(ignored -> log.info("war3_repair.exe has started"), () -> {
                     try {
                         new ProcessBuilder("D:\\myGame\\war3_repair.exe").start();
                         log.info("war3_repair.exe starts");
@@ -61,9 +59,7 @@ public class Application {
             } else {
                 log.info("Application already launched tools for War3.exe");
             }
-        }, () -> {
-            log.info("War3.exe doesn't exist");
-        });
+        }, () -> log.info("War3.exe doesn't exist"));
     }
 
     private Optional<String> getPID(String programName) {
@@ -81,7 +77,7 @@ public class Application {
              final BufferedReader processStOutput = new BufferedReader(new InputStreamReader(taskListStdout, TASKLIST_CHARSET));
              final InputStream processStdErr = new BufferedInputStream(tasklistProcess.getErrorStream())) {
 
-            String line = null;
+            String line;
             while ((line = processStOutput.readLine()) != null) {
                 // War3.exe                 5084 Console                    8    374,968 K
                 // war3_repair.exe              25740 Console                    8     70,432 K
