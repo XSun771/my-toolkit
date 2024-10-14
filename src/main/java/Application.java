@@ -22,20 +22,18 @@ public class Application {
         final Application application = new Application();
         while (true) {
             log.info("Application With-War3 starts ...");
-            application.getPID(programName).map((ignored) -> {
+            application.getPID(programName).ifPresentOrElse((ignored) -> {
                 application.start(programName);
                 try {
                     TimeUnit.MINUTES.sleep(1);
                 } catch (InterruptedException ignoredExp) {
                 }
                 application.start(programName);
-                return ignored;
-            }).or(() -> {
+            },() -> {
                 try {
                     TimeUnit.SECONDS.sleep(20);
                 } catch (InterruptedException ignored) {
                 }
-                return Optional.empty();
             });
         }
     }
